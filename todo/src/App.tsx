@@ -1,5 +1,4 @@
-import { useState } from "react";
-import "./App.css";
+import { useReducer, useState } from 'react';
 
 type Task = {
   id: number;
@@ -7,77 +6,101 @@ type Task = {
   isDone: boolean;
 };
 
-type TaskProps = Task & {
-  onToggle: (id: number) => void;
-  onDelete: (id: number) => void;
-};
-
-type ListProps = { onAdd: (title: string) => void };
-
 type TodoList = Task[];
 
-const Task = ({ id, title, isDone, onToggle, onDelete }: TaskProps) => (
-  <div>
-    <p onClick={() => onToggle(id)}>{isDone ? <s>{title}</s> : title}</p>
-    <button onClick={() => onDelete(id)}>Delete</button>
-  </div>
-);
+enum ActionTypes {
+  toggle = 'toggle-task',
+  delete = 'delete-task',
+  addTask = 'add-task',
+}
 
-const AddTask = ({ onAdd }: ListProps) => {
-  const [title, setTitle] = useState("");
+type Action =
+  | { type: ActionTypes.toggle; id: number }
+  | { type: ActionTypes.delete; id: number }
+  | { type: ActionTypes.addTask; title: string };
+
+type Dispatcher = (action: Action) => void;
+
+type TaskProps = Task & {
+  dispatch: Dispatcher;
+};
+
+const AddTask = ({ onAdd }: { onAdd: Dispatcher }) => {
+  const [title, setTitle] = useState('');
 
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault();
-        onAdd(title);
-        setTitle("");
+        onAdd({ title, type: ActionTypes.addTask });
+        setTitle('');
       }}
     >
-      <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} />
+      <input
+        type="text"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+      />
     </form>
   );
 };
 
+const reducer = (todoList: TodoList, action: Action) => {
+  switch (action.type) {
+    case ActionTypes.toggle:
+      return todoList.map((task: Task) =>
+        task.id === action.id ? { ...task, isDone: !task.isDone } : task,
+      );
+
+    case ActionTypes.delete:
+      return todoList.filter((task: Task) => task.id !== action.id);
+
+    case ActionTypes.addTask:
+      const newTask = {
+        id: todoList.length + 1,
+        title: action.title,
+        isDone: false,
+      };
+      return [...todoList, newTask];
+
+    default:
+      return todoList;
+  }
+};
+
+const Task = ({ id, title, isDone, dispatch }: TaskProps) => (
+  <div>
+    <p onClick={() => dispatch({ type: ActionTypes.toggle, id })}>
+      {isDone ? <s>{title}</s> : title}
+    </p>
+    <button onClick={() => dispatch({ type: ActionTypes.delete, id })}>
+      Delete
+    </button>
+  </div>
+);
+
 const App = () => {
   const initialTodoList: TodoList = [
-    { id: 1, title: "Buy coffee", isDone: false },
-    { id: 2, title: "Buy eggs", isDone: true },
-    { id: 3, title: "Buy apples", isDone: false },
+    { id: 1, title: 'Buy coffee', isDone: false },
+    { id: 2, title: 'Buy eggs', isDone: true },
+    { id: 3, title: 'Buy apples', isDone: false },
   ];
 
-  const [todoList, setTodoList] = useState<TodoList>(initialTodoList);
-
-  const toggleTask = (targetTaskId: number) => {
-    setTodoList(
-      todoList.map((task) =>
-        task.id === targetTaskId ? { ...task, isDone: !task.isDone } : task,
-      ),
-    );
-  };
-
-  const deleteTask = (targetTaskId: number) => {
-    setTodoList(todoList.filter((task) => task.id !== targetTaskId));
-  };
-
-  const addTask = (title: string) => {
-    const newTask = { id: todoList.length + 1, title, isDone: false };
-    setTodoList([...todoList, newTask]);
-  };
+  const [todoList, dispatch] = useReducer(reducer, initialTodoList);
 
   return (
     <div>
-      {todoList.map(({ id, title, isDone }, idx) => (
+      {todoList.map(({ id, title, isDone }) => (
         <Task
-          key={idx}
+          key={id}
           id={id}
           title={title}
           isDone={isDone}
-          onToggle={toggleTask}
-          onDelete={deleteTask}
+          dispatch={dispatch}
         />
       ))}
-      <AddTask onAdd={addTask} />
+
+      <AddTask onAdd={dispatch} />
     </div>
   );
 };
